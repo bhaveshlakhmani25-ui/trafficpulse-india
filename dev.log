@@ -1,0 +1,11 @@
+
+> next-temp@0.1.0 dev
+> next dev
+
+▲ Next.js 16.3.5 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://172.20.245.173:3000
+✓ Ready in 191ms
+✓ Running next.config.ts took 15ms
+
+ GET / 200 in 1720ms (next.js: 1559ms, application-code: 160ms)
