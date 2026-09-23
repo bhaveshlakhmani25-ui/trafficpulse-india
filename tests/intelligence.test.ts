@@ -11,7 +11,7 @@ describe('Deterministic Intelligence', () => {
       description: '', reportedAt: '', status: 'active', sourceType: 'simulation', provenance: 'DEMO_SIMULATION', dataClass: 'OBSERVED'
     };
     const segments: TrafficSegment[] = [
-      { id: '1', roadName: 'Test', coordinates: [], speed: 10, freeFlowSpeed: 60, congestionLevel: 'severe', trend: 'worsening', sourceType: 'simulation', provenance: 'DEMO_SIMULATION', dataClass: 'OBSERVED', timestamp: '' }
+      { id: '1', roadName: 'Test', coordinates: [], currentSpeedKmh: 10, freeFlowSpeedKmh: 60, trafficState: 'severe', lengthKm: 2, laneCount: 3, estimatedDensityVehPerKmPerLane: 50, estimatedFlowVehPerHour: 1500, direction: 'forward', trend: 'worsening', sourceType: 'simulation', provenance: 'DEMO_SIMULATION', dataClass: 'OBSERVED', timestamp: '' }
     ];
 
     const hotspot = calculateHotspot(incident, segments);

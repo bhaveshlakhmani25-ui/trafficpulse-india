@@ -1,9 +1,15 @@
 export type SourceType = 'simulation' | 'mapbox' | 'iudx' | 'user';
-export type Provenance = 'DEMO_SIMULATION' | 'MAPBOX_DIRECTIONS_API' | 'IUDX_ADAPTIVE_TRAFFIC' | 'BTP_HISTORICAL' | 'SYSTEM_GENERATED';
+export type Provenance = 'DEMO_SIMULATION' | 'MAPBOX_DIRECTIONS_API' | 'IUDX_ADAPTIVE_TRAFFIC' | 'BTP_HISTORICAL' | 'SYSTEM_GENERATED' | 'CITY_SIMULATION';
 export type IncidentType = 'accident' | 'breakdown' | 'construction' | 'hazard' | 'congestion';
 export type IncidentSeverity = 'low' | 'medium' | 'high' | 'critical';
 export type TrafficState = 'free-flow' | 'moderate' | 'congested' | 'severe';
 export type DataClass = 'OBSERVED' | 'HISTORICAL' | 'PREDICTED';
+
+export type FocusedFeature = {
+  type: "incident" | "checkpoint" | "camera" | "hotspot" | "route";
+  id: string;
+  coordinates: [number, number];
+};
 
 export interface Evidence {
   id: string;
@@ -26,9 +32,14 @@ export interface BaseEntity {
 export interface TrafficSegment extends BaseEntity {
   coordinates: [number, number][]; // [lon, lat]
   roadName: string;
-  speed: number;
-  freeFlowSpeed: number;
-  congestionLevel: TrafficState;
+  lengthKm: number;
+  laneCount: number;
+  freeFlowSpeedKmh: number;
+  currentSpeedKmh: number;
+  trafficState: TrafficState;
+  estimatedDensityVehPerKmPerLane: number;
+  estimatedFlowVehPerHour: number;
+  direction: 'forward' | 'backward';
   trend: 'improving' | 'stable' | 'worsening';
   timestamp: string;
 }

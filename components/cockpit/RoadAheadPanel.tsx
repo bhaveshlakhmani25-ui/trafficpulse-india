@@ -1,12 +1,13 @@
 import React from 'react';
-import { MobilityState, TrafficSegment, Alert } from '../../lib/mobility/types';
+import { MobilityState, TrafficSegment, Alert, FocusedFeature } from '../../lib/mobility/types';
 import SeeWhyPopover from './SeeWhyPopover';
 
 interface RoadAheadPanelProps {
   mobilityState: MobilityState;
+  onFeatureClick?: (feature: FocusedFeature) => void;
 }
 
-export default function RoadAheadPanel({ mobilityState }: RoadAheadPanelProps) {
+export default function RoadAheadPanel({ mobilityState, onFeatureClick }: RoadAheadPanelProps) {
   const getTrafficColor = (level: string) => {
     switch (level) {
       case 'free-flow': return 'bg-emerald-500';
@@ -36,17 +37,35 @@ export default function RoadAheadPanel({ mobilityState }: RoadAheadPanelProps) {
       
       <div className="p-4 space-y-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
         {/* Current Context */}
-        <div className="mb-2 pb-2 border-b border-gray-800">
+        <div 
+          className="mb-2 pb-2 border-b border-gray-800 cursor-pointer hover:bg-gray-800/50 p-2 rounded transition-colors"
+          onClick={() => {
+            if (onFeatureClick && currentRoute) {
+              onFeatureClick({ type: 'route', id: currentRoute.id, coordinates: currentRoute.geometry[0] });
+            }
+          }}
+        >
           <p className="text-xs text-gray-400">Following Route</p>
-          <p className="text-sm font-medium text-white text-blue-400">
+          <p className="text-sm font-medium text-blue-400">
             {currentRoute?.name || 'Unknown Route'}
           </p>
         </div>
 
         {/* Global Alerts (High severity) */}
         {mobilityState.alerts.filter(a => a.severity === 'high' || a.severity === 'critical').map(alert => (
-          <div key={alert.id} className="bg-red-900/20 border border-red-900/50 rounded-lg p-3 relative">
-            <div className="absolute top-2 right-2">
+          <div 
+            key={alert.id} 
+            className="bg-red-900/20 border border-red-900/50 rounded-lg p-3 relative cursor-pointer hover:bg-red-900/40 transition-colors"
+            onClick={() => {
+              if (onFeatureClick && alert.incidentId) {
+                const inc = mobilityState.incidents.find(i => i.id === alert.incidentId);
+                if (inc) {
+                  onFeatureClick({ type: 'incident', id: inc.id, coordinates: inc.location });
+                }
+              }
+            }}
+          >
+            <div className="absolute top-2 right-2" onClick={e => e.stopPropagation()}>
               <SeeWhyPopover 
                 evidence={mobilityState.evidence.filter(e => alert.evidenceIds?.includes(e.id))} 
                 buttonText="Why?" 
@@ -54,7 +73,7 @@ export default function RoadAheadPanel({ mobilityState }: RoadAheadPanelProps) {
             </div>
             <div className="flex items-start">
               <span className="text-lg mr-2">{getAlertIcon(alert.type)}</span>
-              <div>
+              <div className="pr-12">
                 <p className="text-xs font-bold text-red-400 uppercase tracking-wide mb-1">{alert.alertClass.replace('_', ' ')}</p>
                 <p className="text-sm text-gray-200 leading-snug">{alert.title}</p>
                 <p className="text-xs text-gray-400 mt-1">{alert.roadName}</p>
@@ -70,25 +89,33 @@ export default function RoadAheadPanel({ mobilityState }: RoadAheadPanelProps) {
             const segmentCameras = mobilityState.cameras.filter(c => c.corridor === seg.roadName);
             const segmentForecast = mobilityState.forecasts.find(f => f.segmentId === seg.id);
             const segmentRisk = mobilityState.incidentRisks.find(r => r.roadId === seg.id);
+            
+            // Checkpoints in this segment (naively by roadId for now)
+            const segmentCheckpoints = mobilityState.checkpoints.filter(c => c.roadId === seg.id);
 
             return (
               <div key={seg.id} className="flex items-start">
                 <div className="flex flex-col items-center mr-3 mt-1 shrink-0">
-                  <div className={`w-3 h-3 rounded-full ${getTrafficColor(seg.congestionLevel)} ring-2 ring-gray-900`} />
+                  <div className={`w-3 h-3 rounded-full ${getTrafficColor(seg.trafficState)} ring-2 ring-gray-900`} />
                   <div className="w-0.5 h-full min-h-[3rem] bg-gray-800 my-1" />
                 </div>
                 
                 <div className="flex-1 pb-2">
                   <div className="flex justify-between items-start mb-1">
                     <p className="text-sm font-semibold text-white">{seg.roadName}</p>
-                    <p className="text-xs font-mono text-gray-400">{seg.speed} km/h</p>
+                    <p className="text-xs font-mono text-gray-400">{seg.currentSpeedKmh} km/h</p>
                   </div>
                   
                   {/* Segment Details */}
                   <div className="space-y-2 mt-2">
+                    
                     {/* Incidents */}
                     {segmentIncidents.map(inc => (
-                      <div key={inc.id} className="text-xs text-red-400 flex items-center bg-red-950/30 px-2 py-1 rounded">
+                      <div 
+                        key={inc.id} 
+                        className="text-xs text-red-400 flex items-center bg-red-950/30 px-2 py-1 rounded cursor-pointer hover:bg-red-900/50 transition-colors"
+                        onClick={() => onFeatureClick?.({ type: 'incident', id: inc.id, coordinates: inc.location })}
+                      >
                         <span className="mr-1">🚨</span> {inc.description}
                       </div>
                     ))}
@@ -97,10 +124,12 @@ export default function RoadAheadPanel({ mobilityState }: RoadAheadPanelProps) {
                     {segmentForecast && segmentForecast.predictedState === 'severe' && (
                       <div className="text-xs text-orange-400 flex justify-between items-center bg-orange-950/30 px-2 py-1 rounded border border-orange-900/30">
                         <span><span className="mr-1">📈</span> Forecast: Severe in {segmentForecast.forecastHorizon}m</span>
-                        <SeeWhyPopover 
-                          evidence={mobilityState.evidence.filter(e => segmentForecast.evidenceIds.includes(e.id))} 
-                          buttonText="Why?" 
-                        />
+                        <div onClick={e => e.stopPropagation()}>
+                          <SeeWhyPopover 
+                            evidence={mobilityState.evidence.filter(e => segmentForecast.evidenceIds.includes(e.id))} 
+                            buttonText="Why?" 
+                          />
+                        </div>
                       </div>
                     )}
 
@@ -108,16 +137,33 @@ export default function RoadAheadPanel({ mobilityState }: RoadAheadPanelProps) {
                     {segmentRisk && segmentRisk.riskLevel === 'HIGH' && (
                       <div className="text-xs text-purple-400 flex justify-between items-center bg-purple-950/30 px-2 py-1 rounded border border-purple-900/30">
                         <span><span className="mr-1">⚠</span> High Incident Risk</span>
-                        <SeeWhyPopover 
-                          evidence={mobilityState.evidence.filter(e => segmentRisk.evidenceIds.includes(e.id))} 
-                          buttonText="Why?" 
-                        />
+                        <div onClick={e => e.stopPropagation()}>
+                          <SeeWhyPopover 
+                            evidence={mobilityState.evidence.filter(e => segmentRisk.evidenceIds.includes(e.id))} 
+                            buttonText="Why?" 
+                          />
+                        </div>
                       </div>
                     )}
 
+                    {/* Checkpoints */}
+                    {segmentCheckpoints.map(chk => (
+                      <div 
+                        key={chk.id} 
+                        className="text-[10px] text-gray-300 flex items-center cursor-pointer hover:bg-gray-800 rounded px-1 py-0.5 transition-colors"
+                        onClick={() => onFeatureClick?.({ type: 'checkpoint', id: chk.id, coordinates: chk.location })}
+                      >
+                        <span className="mr-1">●</span> Checkpoint: {chk.trafficDensity} density
+                      </div>
+                    ))}
+
                     {/* Cameras */}
                     {segmentCameras.map(cam => (
-                      <div key={cam.id} className="text-[10px] text-blue-400 flex items-center">
+                      <div 
+                        key={cam.id} 
+                        className="text-[10px] text-blue-400 flex items-center cursor-pointer hover:bg-gray-800 rounded px-1 py-0.5 transition-colors"
+                        onClick={() => onFeatureClick?.({ type: 'camera', id: cam.id, coordinates: cam.location })}
+                      >
                         <span className="mr-1">📹</span> Live Camera ({cam.direction})
                       </div>
                     ))}

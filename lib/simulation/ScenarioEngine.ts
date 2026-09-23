@@ -23,7 +23,7 @@ export class ScenarioEngine {
     const cameras = await this.simulationSource.getCameras(cityId);
     const roadConditions = await this.simulationSource.getConditions(cityId);
     const weather = await this.simulationSource.getCurrentWeather(cityId);
-    const routes = this.simulationSource.getDemoRoutes(); // Initial routes
+    const routes = this.simulationSource.getDemoRoutes(cityId);
 
     this.state = {
       scenarioState: 'NORMAL',
@@ -40,7 +40,7 @@ export class ScenarioEngine {
       incidentRisks: [],
       alerts: [],
       evidence: [],
-      recommendedRouteId: routes[0].id,
+      recommendedRouteId: routes.length > 0 ? routes[0].id : undefined,
       explanation: 'Traffic conditions are normal. The primary route is optimal.',
     };
     
@@ -63,7 +63,7 @@ export class ScenarioEngine {
   private schedule(delay: number, action: () => void) {
     const t = setTimeout(() => {
       action();
-      this.runEngines(); // Always run engines after state mutation
+      this.runEngines();
     }, delay);
     this.timers.push(t);
   }
@@ -71,20 +71,16 @@ export class ScenarioEngine {
   private runEngines() {
     if (!this.state) return;
 
-    // Reset evidence array
     this.state.evidence = [];
 
-    // 1. Forecast Engine
     const { forecasts, evidence: fcEvidence } = TrafficForecastEngine.calculateForecast(this.state);
     this.state.forecasts = forecasts;
     this.state.evidence.push(...fcEvidence);
 
-    // 2. Risk Engine
     const { risks, evidence: riskEvidence } = IncidentRiskEngine.calculateRisk(this.state);
     this.state.incidentRisks = risks;
     this.state.evidence.push(...riskEvidence);
 
-    // 3. Alert Engine
     this.state.alerts = AlertEngine.generateAlerts(this.state);
 
     this.notify();
@@ -97,32 +93,42 @@ export class ScenarioEngine {
   public triggerIncident() {
     if (this.state.scenarioState !== 'NORMAL') return;
     
-    // Step 1: INCIDENT DETECTED
+    const demoIncident = this.simulationSource.getDemoIncident(this.state.cityId);
+    if (!demoIncident) return;
+
     this.state.scenarioState = 'INCIDENT_DETECTED';
-    this.state.incidents = [this.simulationSource.getDemoIncident()];
+    this.state.incidents = [demoIncident];
     this.state.explanation = 'Major incident detected on the primary corridor.';
     this.runEngines();
 
-    // Step 2: CHECKPOINT DENSITY RISES
     this.schedule(1500, () => {
-      this.state.checkpoints = this.state.checkpoints.map(chk => 
-        chk.id === 'chk-silkboard' 
-          ? { ...chk, trafficDensity: 'high', queueLengthMeters: 400, trend: 'worsening', averageSpeedKmph: 12 }
-          : chk
-      );
+      // Find the first checkpoint and worsen it to simulate density rise
+      if (this.state.checkpoints.length > 0) {
+        this.state.checkpoints[0] = { 
+          ...this.state.checkpoints[0], 
+          trafficDensity: 'high', 
+          queueLengthMeters: 400, 
+          trend: 'worsening', 
+          averageSpeedKmph: 12 
+        };
+      }
     });
 
-    // Step 3: TRAFFIC WORSENS & IMPACT
     this.schedule(3000, () => {
       this.state.scenarioState = 'IMPACT';
-      this.state.segments = this.state.segments.map(seg => 
-        seg.id === 'seg-orr-01' 
-          ? { ...seg, congestionLevel: 'severe', speed: 10, trend: 'worsening' } 
-          : seg
-      );
+      if (this.state.segments.length > 0) {
+        const seg = this.state.segments[0];
+        this.state.segments[0] = { 
+          ...seg, 
+          trafficState: 'severe', 
+          currentSpeedKmh: 10, 
+          estimatedDensityVehPerKmPerLane: 85, // massive queue buildup
+          estimatedFlowVehPerHour: 85 * 10 * seg.laneCount, // reduced flow
+          trend: 'worsening' 
+        };
+      }
     });
 
-    // Step 4: HOTSPOT FORMS
     this.schedule(4500, () => {
       this.state.scenarioState = 'HOTSPOT_FORMED';
       if (this.state.incidents.length > 0) {
@@ -131,33 +137,37 @@ export class ScenarioEngine {
       }
     });
 
-    // Step 5: ETA DELAY INCREASES & ROUTES RE-EVALUATED
     this.schedule(6000, () => {
       this.state.scenarioState = 'ETA_DELAY';
-      const routeA = this.state.routes.find(r => r.id === this.simulationSource.getDemoRoutes()[0].id);
-      if (routeA) {
-        routeA.incidentPenalty = 540; // 9 mins extra
-        routeA.congestionPenalty = 300; // 5 mins extra
-        const forecast = this.state.forecasts.find(f => f.segmentId === 'seg-orr-01');
-        routeA.forecastPenalty = forecast ? forecast.expectedDelay : 0;
-        routeA.overallCost = routeA.baseTimeSeconds + routeA.incidentPenalty + routeA.congestionPenalty + routeA.forecastPenalty;
+      const routes = this.simulationSource.getDemoRoutes(this.state.cityId);
+      if (routes.length > 0) {
+        const routeA = this.state.routes.find(r => r.id === routes[0].id);
+        if (routeA) {
+          routeA.incidentPenalty = 540; 
+          routeA.congestionPenalty = 300; 
+          const forecast = this.state.forecasts.find(f => f.segmentId === this.state.segments[0].id);
+          routeA.forecastPenalty = forecast ? forecast.expectedDelay : 0;
+          routeA.overallCost = routeA.baseTimeSeconds + routeA.incidentPenalty + routeA.congestionPenalty + routeA.forecastPenalty;
+        }
       }
     });
 
-    // Step 6: ALTERNATIVE RECOMMENDED
     this.schedule(7500, () => {
       this.state.scenarioState = 'RECOMMENDATION';
-      this.state.recommendedRouteId = this.simulationSource.getDemoRoutes()[1].id;
-      this.state.explanation = 'Alternative route avoids the affected corridor and currently has lower estimated delay.';
+      const routes = this.simulationSource.getDemoRoutes(this.state.cityId);
+      if (routes.length > 1) {
+        this.state.recommendedRouteId = routes[1].id;
+        this.state.explanation = 'Alternative route avoids the affected corridor and currently has lower estimated delay.';
+      }
     });
   }
 
-  public resetScenario() {
+  public async resetScenario(cityId?: string) {
     this.timers.forEach(t => clearTimeout(t));
     this.timers = [];
-    this.initializeState(this.state.cityId); // Re-initialize completely
+    const targetCity = cityId || this.state.cityId;
+    await this.initializeState(targetCity);
   }
 }
 
-// Global singleton for the demo
 export const demoScenarioEngine = new ScenarioEngine();

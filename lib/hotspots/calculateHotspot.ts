@@ -26,7 +26,7 @@ export function calculateHotspot(
 
   let maxTrafficScore = 0;
   for (const seg of affectedSegments) {
-    const score = TRAFFIC_WEIGHTS[seg.congestionLevel] || 0;
+    const score = TRAFFIC_WEIGHTS[seg.trafficState] || 0;
     if (score > maxTrafficScore) {
       maxTrafficScore = score;
     }

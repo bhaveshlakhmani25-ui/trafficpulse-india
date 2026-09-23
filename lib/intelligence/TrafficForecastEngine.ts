@@ -8,7 +8,7 @@ export class TrafficForecastEngine {
 
     for (const segment of state.segments) {
       // Start with optimistic forecast
-      let predictedState = segment.congestionLevel;
+      let predictedState = segment.trafficState;
       let expectedDelay = 0;
       let confidence = 0.5; // Base confidence
       let forecastHorizon = 15; // default 15 min
@@ -58,7 +58,7 @@ export class TrafficForecastEngine {
           confidence += 0.1;
         }
 
-        if (chk.averageSpeedKmph < segment.freeFlowSpeed * 0.5) {
+        if (chk.averageSpeedKmph < segment.freeFlowSpeedKmh * 0.5) {
           const evId = `ev-spd-${Date.now()}-${Math.random()}`;
           newEvidence.push({
             id: evId,
@@ -82,7 +82,7 @@ export class TrafficForecastEngine {
       forecasts.push({
         id: `fc-${segment.id}-${Date.now()}`,
         segmentId: segment.id,
-        currentState: segment.congestionLevel,
+        currentState: segment.trafficState,
         predictedState,
         forecastHorizon,
         expectedDelay,

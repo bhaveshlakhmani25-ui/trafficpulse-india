@@ -3,31 +3,35 @@
 import React, { useEffect, useRef, useState } from 'react';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
-import { MobilityState, TrafficSegment } from '../../lib/mobility/types';
+import { MobilityState, TrafficSegment, FocusedFeature } from '../../lib/mobility/types';
 import { CityConfig } from '../../lib/config/CityRegistry';
+import { RoadAheadCameraController } from '../../lib/map/RoadAheadCameraController';
 import { createRoot } from 'react-dom/client';
 import CheckpointPanel from '../cockpit/CheckpointPanel';
 import CameraPreviewPanel from '../cockpit/CameraPreviewPanel';
-import { RoadAheadCameraController } from '../../lib/map/RoadAheadCameraController';
+import { VehicleFlowSimulator } from '../../lib/traffic/VehicleFlowSimulator';
 
 interface MobilityMapProps {
   mobilityState: MobilityState;
   activeCity: CityConfig;
+  focusedFeature?: FocusedFeature | null;
+  onFeatureSelect?: (feature: FocusedFeature | null) => void;
+  isDemoDriveActive?: boolean;
+  activeSection?: string;
 }
 
-export default function MobilityMap({ mobilityState, activeCity }: MobilityMapProps) {
+export default function MobilityMap({ mobilityState, activeCity, focusedFeature, onFeatureSelect, isDemoDriveActive, activeSection }: MobilityMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [hasToken] = useState(!!process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN);
-  const markersRef = useRef<mapboxgl.Marker[]>([]);
   const cameraControllerRef = useRef<RoadAheadCameraController | null>(null);
+  const popupsRef = useRef<mapboxgl.Popup[]>([]);
+  const vehicleSimulatorRef = useRef<VehicleFlowSimulator | null>(null);
 
   useEffect(() => {
     if (!hasToken || !mapContainer.current) return;
 
     if (map.current) {
-      // Not handling dynamic city change perfectly here to keep demo simple, 
-      // but we could flyTo the new center.
       map.current.easeTo({
         center: activeCity.centerCoordinates,
         zoom: activeCity.initialZoom,
@@ -41,21 +45,135 @@ export default function MobilityMap({ mobilityState, activeCity }: MobilityMapPr
     
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/standard', // Use 3D standard style
+      style: 'mapbox://styles/mapbox/standard',
       center: activeCity.centerCoordinates,
       zoom: activeCity.initialZoom,
-      pitch: 0, // Starts top-down
+      pitch: 0,
       bearing: 0,
     });
 
-    map.current.on('style.load', () => {
-      // Configuration for Standard style 3D
-      map.current?.setConfigProperty('basemap', 'lightPreset', 'dusk'); // darker, premium look
-      cameraControllerRef.current = new RoadAheadCameraController(map.current!);
-      updateMapLayers();
+    vehicleSimulatorRef.current = new VehicleFlowSimulator();
+    vehicleSimulatorRef.current.onTick((geoJson) => {
+      if (map.current && map.current.isStyleLoaded() && map.current.getSource('vehicles')) {
+        (map.current.getSource('vehicles') as mapboxgl.GeoJSONSource).setData(geoJson);
+      }
     });
 
+    // Handle Resize via ResizeObserver
+    const resizeObserver = new ResizeObserver(() => {
+      map.current?.resize();
+    });
+    resizeObserver.observe(mapContainer.current);
+
+    map.current.on('style.load', () => {
+      map.current?.setConfigProperty('basemap', 'lightPreset', 'dusk');
+      cameraControllerRef.current = new RoadAheadCameraController(map.current!);
+      
+      const carSvg = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L4 20L12 17L20 20L12 2Z" fill="#3b82f6" stroke="#1d4ed8" stroke-width="1"/></svg>';
+      const img = new Image();
+      img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(carSvg);
+      img.onload = () => {
+        if (map.current && !map.current.hasImage('car-icon')) {
+          map.current.addImage('car-icon', img);
+        }
+      };
+
+      initMapLayers();
+      updateMapLayers();
+      if (vehicleSimulatorRef.current) vehicleSimulatorRef.current.start();
+    });
+
+    // Click handler for Checkpoints
+    map.current.on('click', 'checkpoints-unclustered', (e) => {
+      if (!e.features || e.features.length === 0) return;
+      const feature = e.features[0];
+      const coords = (feature.geometry as GeoJSON.Point).coordinates;
+      if (onFeatureSelect && feature.properties?.id) {
+        onFeatureSelect({ type: 'checkpoint', id: feature.properties.id, coordinates: [coords[0], coords[1]] });
+      }
+    });
+    map.current.on('mouseenter', 'checkpoints-unclustered', () => { if (map.current) map.current.getCanvas().style.cursor = 'pointer'; });
+    map.current.on('mouseleave', 'checkpoints-unclustered', () => { if (map.current) map.current.getCanvas().style.cursor = ''; });
+
+    // Click handler for Cameras
+    map.current.on('click', 'cameras-layer', (e) => {
+      if (!e.features || e.features.length === 0) return;
+      const feature = e.features[0];
+      const coords = (feature.geometry as GeoJSON.Point).coordinates;
+      if (onFeatureSelect && feature.properties?.id) {
+        onFeatureSelect({ type: 'camera', id: feature.properties.id, coordinates: [coords[0], coords[1]] });
+      }
+    });
+    map.current.on('mouseenter', 'cameras-layer', () => { if (map.current) map.current.getCanvas().style.cursor = 'pointer'; });
+    map.current.on('mouseleave', 'cameras-layer', () => { if (map.current) map.current.getCanvas().style.cursor = ''; });
+
+    // Click handler for Traffic Segments
+    map.current.on('click', 'traffic-lines', (e) => {
+      if (!e.features || e.features.length === 0) return;
+      const feature = e.features[0];
+      const props = feature.properties;
+      
+      const popupNode = document.createElement('div');
+      const popup = new mapboxgl.Popup({ offset: 15, closeButton: true, className: 'custom-popup bg-gray-900 border border-gray-800 rounded-lg p-0 text-white' }).setDOMContent(popupNode);
+      
+      const root = createRoot(popupNode);
+      root.render(
+        <div className="p-3 w-64 text-sm bg-gray-900 text-white rounded">
+          <div className="font-bold text-xs uppercase tracking-widest text-gray-400 mb-2">ROAD TRAFFIC</div>
+          <div className="font-semibold mb-2">{props?.roadName}</div>
+          <div className="flex justify-between text-xs mb-1">
+            <span className="text-gray-400">Traffic:</span>
+            <span className="font-bold text-orange-400">{props?.trafficState?.toUpperCase()}</span>
+          </div>
+          <div className="flex justify-between text-xs mb-1">
+            <span className="text-gray-400">Current speed:</span>
+            <span>{props?.currentSpeedKmh} km/h</span>
+          </div>
+          <div className="flex justify-between text-xs mb-1">
+            <span className="text-gray-400">Free-flow:</span>
+            <span>{props?.freeFlowSpeedKmh} km/h</span>
+          </div>
+          <div className="flex justify-between text-xs mb-1">
+            <span className="text-gray-400">Density:</span>
+            <span>{props?.density} veh/km/lane</span>
+          </div>
+          <div className="flex justify-between text-xs mb-1 mt-2 pt-2 border-t border-gray-800">
+            <span className="text-gray-400">Estimated flow:</span>
+            <span>{props?.flow} veh/hour</span>
+          </div>
+          <div className="flex justify-between text-xs mb-1">
+            <span className="text-gray-400">Modelled capacity:</span>
+            <span>{props?.capacity} veh/hour</span>
+          </div>
+          <div className="flex justify-between text-xs mb-1 mt-2 pt-2 border-t border-gray-800">
+            <span className="text-blue-400 font-bold uppercase text-[10px]">VISUAL REPRESENTATION</span>
+          </div>
+          <div className="flex justify-between text-xs mb-1">
+            <span className="text-gray-400">Vehicles shown:</span>
+            <span>{props?.population}</span>
+          </div>
+          {props?.forecastState && (
+            <div className="flex justify-between text-xs mb-1 mt-2 pt-2 border-t border-gray-800">
+              <span className="text-gray-400">Forecast:</span>
+              <span className="text-red-400 font-medium">{props.forecastState.toUpperCase()} in {props.forecastHorizon}m</span>
+            </div>
+          )}
+          <div className="flex justify-between text-[10px] mt-2 pt-2 text-gray-500">
+            <span>Data: SIMULATION</span>
+          </div>
+        </div>
+      );
+      
+      popup.setLngLat(e.lngLat).addTo(map.current!);
+      popupsRef.current.push(popup);
+    });
+    map.current.on('mouseenter', 'traffic-lines', () => { if (map.current) map.current.getCanvas().style.cursor = 'pointer'; });
+    map.current.on('mouseleave', 'traffic-lines', () => { if (map.current) map.current.getCanvas().style.cursor = ''; });
+
     return () => {
+      resizeObserver.disconnect();
+      popupsRef.current.forEach(p => p.remove());
+      if (vehicleSimulatorRef.current) vehicleSimulatorRef.current.stop();
       map.current?.remove();
       map.current = null;
       cameraControllerRef.current = null;
@@ -63,236 +181,314 @@ export default function MobilityMap({ mobilityState, activeCity }: MobilityMapPr
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCity.id, hasToken]);
 
-  // Update sources/layers whenever mobility state changes
+  // Update sources/layers whenever mobility state or activeSection changes
   useEffect(() => {
     if (!map.current || !map.current.isStyleLoaded()) return;
     updateMapLayers();
-    updateMarkers();
-    updateCamera();
+    if (vehicleSimulatorRef.current) {
+      vehicleSimulatorRef.current.setMobilityState(mobilityState);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mobilityState]);
+  }, [mobilityState, activeSection]);
 
-  const updateCamera = () => {
-    if (!cameraControllerRef.current) return;
-    
-    const recommendedRoute = mobilityState.routes.find(r => r.id === mobilityState.recommendedRouteId);
+  // Handle Focused Feature changes
+  useEffect(() => {
+    if (!cameraControllerRef.current || !map.current || !map.current.isStyleLoaded()) return;
 
-    // If an incident is active and we want to draw attention
-    if (mobilityState.scenarioState === 'INCIDENT_DETECTED' || mobilityState.scenarioState === 'IMPACT') {
-      const incident = mobilityState.incidents[0];
-      if (incident) {
-        cameraControllerRef.current.focusIncident(incident.location);
-        return;
+    // Clear old popups
+    popupsRef.current.forEach(p => p.remove());
+    popupsRef.current = [];
+
+    if (!focusedFeature) {
+      const recommendedRoute = mobilityState.routes.find(r => r.id === mobilityState.recommendedRouteId);
+      if (isDemoDriveActive && recommendedRoute) {
+        cameraControllerRef.current.startDemoDrive(recommendedRoute.geometry);
+      } else if (recommendedRoute) {
+        cameraControllerRef.current.stopDemoDrive();
+        cameraControllerRef.current.followRoute(recommendedRoute.geometry);
+      } else {
+        cameraControllerRef.current.stopDemoDrive();
+        cameraControllerRef.current.resetToCityView(activeCity.centerCoordinates, activeCity.initialZoom);
       }
+      return;
     }
 
-    // Road Ahead perspective for active route
-    if (recommendedRoute) {
-      // Center roughly around the middle of the route, with a pitch
-      const midPoint = recommendedRoute.geometry[Math.floor(recommendedRoute.geometry.length / 2)] as [number, number];
-      cameraControllerRef.current.followRoute(midPoint);
-    } else {
-      // Top down
-      cameraControllerRef.current.resetToCityView(activeCity.centerCoordinates, activeCity.initialZoom);
+    // Move camera
+    switch (focusedFeature.type) {
+      case 'route':
+        const route = mobilityState.routes.find(r => r.id === focusedFeature.id);
+        if (route) cameraControllerRef.current.followRoute(route.geometry);
+        break;
+      case 'incident':
+        cameraControllerRef.current.focusIncident(focusedFeature.coordinates);
+        break;
+      case 'checkpoint':
+        cameraControllerRef.current.focusCheckpoint(focusedFeature.coordinates);
+        
+        // Show React Panel in popup
+        const chk = mobilityState.checkpoints.find(c => c.id === focusedFeature.id);
+        if (chk) {
+          const popupNode = document.createElement('div');
+          const popup = new mapboxgl.Popup({ offset: 15, closeButton: false, className: 'custom-popup' }).setDOMContent(popupNode);
+          const root = createRoot(popupNode);
+          root.render(<CheckpointPanel checkpoint={chk} />);
+          popup.setLngLat(focusedFeature.coordinates).addTo(map.current!);
+          popupsRef.current.push(popup);
+        }
+        break;
+      case 'camera':
+        cameraControllerRef.current.focusCamera(focusedFeature.coordinates);
+        
+        // Show React Panel in popup
+        const cam = mobilityState.cameras.find(c => c.id === focusedFeature.id);
+        if (cam) {
+          const popupNode = document.createElement('div');
+          const popup = new mapboxgl.Popup({ offset: 15, closeButton: false, className: 'custom-popup' }).setDOMContent(popupNode);
+          const root = createRoot(popupNode);
+          root.render(<CameraPreviewPanel camera={cam} />);
+          popup.setLngLat(focusedFeature.coordinates).addTo(map.current!);
+          popupsRef.current.push(popup);
+        }
+        break;
+      case 'hotspot':
+        cameraControllerRef.current.focusHotspot(focusedFeature.coordinates);
+        break;
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedFeature, isDemoDriveActive]);
+
+  const initMapLayers = () => {
+    if (!map.current) return;
+    
+    // Empty sources
+    map.current.addSource('traffic', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    map.current.addLayer({
+      id: 'traffic-lines',
+      type: 'line',
+      source: 'traffic',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': ['get', 'color'], 'line-width': 6 },
+    });
+
+    map.current.addSource('routes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    map.current.addLayer({
+      id: 'route-lines',
+      type: 'line',
+      source: 'routes',
+      layout: { 'line-join': 'round', 'line-cap': 'round' },
+      paint: { 'line-color': ['get', 'color'], 'line-width': ['get', 'width'], 'line-opacity': ['get', 'opacity'] },
+    }, 'traffic-lines');
+
+    map.current.addSource('hotspots', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    map.current.addLayer({
+      id: 'hotspot-circles',
+      type: 'circle',
+      source: 'hotspots',
+      paint: {
+        'circle-radius': 40,
+        'circle-color': 'rgba(239, 68, 68, 0.2)',
+        'circle-stroke-width': 1,
+        'circle-stroke-color': 'rgba(239, 68, 68, 0.8)',
+      },
+    });
+
+    // Clustered Checkpoints
+    map.current.addSource('checkpoints', { 
+      type: 'geojson', 
+      data: { type: 'FeatureCollection', features: [] },
+      cluster: true,
+      clusterMaxZoom: 14,
+      clusterRadius: 50
+    });
+
+    map.current.addLayer({
+      id: 'checkpoints-clusters',
+      type: 'circle',
+      source: 'checkpoints',
+      filter: ['has', 'point_count'],
+      paint: {
+        'circle-color': '#1f2937',
+        'circle-radius': 15,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#3b82f6'
+      }
+    });
+
+    map.current.addLayer({
+      id: 'checkpoints-cluster-count',
+      type: 'symbol',
+      source: 'checkpoints',
+      filter: ['has', 'point_count'],
+      layout: {
+        'text-field': '{point_count_abbreviated}',
+        'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+        'text-size': 12
+      },
+      paint: {
+        'text-color': '#ffffff'
+      }
+    });
+
+    map.current.addLayer({
+      id: 'checkpoints-unclustered',
+      type: 'circle',
+      source: 'checkpoints',
+      filter: ['!', ['has', 'point_count']],
+      paint: {
+        'circle-color': '#3b82f6',
+        'circle-radius': 6,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#1f2937'
+      }
+    });
+
+    // Cameras (Unclustered)
+    map.current.addSource('cameras', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    map.current.addLayer({
+      id: 'cameras-layer',
+      type: 'circle',
+      source: 'cameras',
+      paint: {
+        'circle-color': '#10b981',
+        'circle-radius': 6,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#1f2937'
+      }
+    });
+
+    // Incidents (Symbol)
+    map.current.addSource('incidents', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    map.current.addLayer({
+      id: 'incidents-layer',
+      type: 'circle',
+      source: 'incidents',
+      paint: {
+        'circle-color': '#ef4444',
+        'circle-radius': 8,
+        'circle-stroke-width': 2,
+        'circle-stroke-color': '#ffffff'
+      }
+    });
+
+    // Vehicles (Symbol)
+    map.current.addSource('vehicles', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+    map.current.addLayer({
+      id: 'vehicles-layer',
+      type: 'symbol',
+      source: 'vehicles',
+      layout: {
+        'icon-image': 'car-icon',
+        'icon-size': 0.75,
+        'icon-rotate': ['get', 'heading'],
+        'icon-allow-overlap': true,
+        'icon-ignore-placement': true
+      },
+      paint: {
+        'icon-opacity': 0.9
+      }
+    });
   };
 
   const updateMapLayers = () => {
-    if (!map.current) return;
+    if (!map.current || !map.current.isStyleLoaded()) return;
 
-    // Traffic Segments Layer
-    if (map.current.getSource('traffic')) {
-      const geojson: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
-        type: 'FeatureCollection',
-        features: mobilityState.segments.map((seg: TrafficSegment) => ({
-          type: 'Feature',
-          geometry: {
-            type: 'LineString',
-            coordinates: seg.coordinates,
-          },
-          properties: {
-            color: getTrafficColor(seg.congestionLevel),
-          },
-        })),
-      };
-      (map.current.getSource('traffic') as mapboxgl.GeoJSONSource).setData(geojson);
-    } else {
-      map.current.addSource('traffic', {
-        type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: mobilityState.segments.map((seg: TrafficSegment) => ({
-            type: 'Feature',
-            geometry: { type: 'LineString', coordinates: seg.coordinates },
-            properties: { color: getTrafficColor(seg.congestionLevel) },
-          })),
-        }
-      });
-      map.current.addLayer({
-        id: 'traffic-lines',
-        type: 'line',
-        source: 'traffic',
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round',
-        },
-        paint: {
-          'line-color': ['get', 'color'],
-          'line-width': 6,
-        },
-      });
-    }
+    // Determine visibility based on activeSection
+    const showTraffic = activeSection === 'overview' || activeSection === 'traffic' || activeSection === 'roadAhead';
+    const showIncidents = activeSection === 'overview' || activeSection === 'incidents' || activeSection === 'roadAhead' || activeSection === 'traffic';
+    const showCheckpoints = activeSection === 'checkpoints' || activeSection === 'roadAhead';
+    const showCameras = activeSection === 'cameras' || activeSection === 'roadAhead';
+    const showHotspots = activeSection === 'risk' || activeSection === 'overview';
+    const showRoutes = activeSection === 'routes' || activeSection === 'roadAhead' || activeSection === 'overview';
 
-    // Routes Layer
-    if (map.current.getSource('routes')) {
-      const geojson: GeoJSON.FeatureCollection<GeoJSON.LineString> = {
-        type: 'FeatureCollection',
-        features: mobilityState.routes.map(r => ({
+    // Traffic Segments
+    (map.current.getSource('traffic') as mapboxgl.GeoJSONSource)?.setData({
+      type: 'FeatureCollection',
+      features: showTraffic ? mobilityState.segments.map((seg: TrafficSegment) => {
+        const forecast = mobilityState.forecasts?.find(f => f.segmentId === seg.id);
+        const population = Math.floor(seg.estimatedDensityVehPerKmPerLane * seg.lengthKm * seg.laneCount);
+        const visualSample = Math.min(population, 100); 
+        
+        return {
           type: 'Feature',
-          geometry: { type: 'LineString', coordinates: r.geometry },
+          geometry: { type: 'LineString', coordinates: seg.coordinates },
           properties: { 
-            color: r.id === mobilityState.recommendedRouteId ? '#3b82f6' : '#6b7280',
-            width: r.id === mobilityState.recommendedRouteId ? 6 : 3,
-            opacity: r.id === mobilityState.recommendedRouteId ? 0.8 : 0.4
+            color: getTrafficColor(seg.trafficState),
+            roadName: seg.roadName,
+            trafficState: seg.trafficState,
+            currentSpeedKmh: seg.currentSpeedKmh,
+            freeFlowSpeedKmh: seg.freeFlowSpeedKmh,
+            density: seg.estimatedDensityVehPerKmPerLane,
+            flow: seg.estimatedFlowVehPerHour,
+            capacity: seg.laneCount * 1200, 
+            population: visualSample,
+            forecastState: forecast?.predictedState || null,
+            forecastHorizon: forecast?.forecastHorizon || null
           },
-        })),
-      };
-      (map.current.getSource('routes') as mapboxgl.GeoJSONSource).setData(geojson);
-    } else {
-      map.current.addSource('routes', {
-        type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: mobilityState.routes.map(r => ({
-            type: 'Feature',
-            geometry: { type: 'LineString', coordinates: r.geometry },
-            properties: { 
-              color: r.id === mobilityState.recommendedRouteId ? '#3b82f6' : '#6b7280',
-              width: r.id === mobilityState.recommendedRouteId ? 6 : 3,
-              opacity: r.id === mobilityState.recommendedRouteId ? 0.8 : 0.4
-            },
-          })),
-        }
-      });
-      // Add routes below traffic lines
-      map.current.addLayer({
-        id: 'route-lines',
-        type: 'line',
-        source: 'routes',
-        layout: {
-          'line-join': 'round',
-          'line-cap': 'round',
-        },
-        paint: {
-          'line-color': ['get', 'color'],
-          'line-width': ['get', 'width'],
-          'line-opacity': ['get', 'opacity'],
-        },
-      }, 'traffic-lines'); // Before traffic-lines
-    }
+        };
+      }) : [],
+    });
 
-    // Hotspots Layer
-    if (map.current.getSource('hotspots')) {
-      const geojson: GeoJSON.FeatureCollection<GeoJSON.Point> = {
-        type: 'FeatureCollection',
-        features: mobilityState.hotspots.map(h => ({
-          type: 'Feature',
-          geometry: { type: 'Point', coordinates: h.location },
-          properties: { radius: h.radius },
-        })),
-      };
-      (map.current.getSource('hotspots') as mapboxgl.GeoJSONSource).setData(geojson);
-    } else {
-      map.current.addSource('hotspots', {
-        type: 'geojson',
-        data: {
-          type: 'FeatureCollection',
-          features: mobilityState.hotspots.map(h => ({
-            type: 'Feature',
-            geometry: { type: 'Point', coordinates: h.location },
-            properties: { radius: h.radius },
-          })),
-        }
-      });
-      map.current.addLayer({
-        id: 'hotspot-circles',
-        type: 'circle',
-        source: 'hotspots',
-        paint: {
-          'circle-radius': 40, // Base radius
-          'circle-color': 'rgba(239, 68, 68, 0.2)', // Red-500 with low opacity
-          'circle-stroke-width': 1,
-          'circle-stroke-color': 'rgba(239, 68, 68, 0.8)',
+    // Routes
+    (map.current.getSource('routes') as mapboxgl.GeoJSONSource)?.setData({
+      type: 'FeatureCollection',
+      features: showRoutes ? mobilityState.routes.map(r => ({
+        type: 'Feature',
+        geometry: { type: 'LineString', coordinates: r.geometry },
+        properties: { 
+          color: r.id === mobilityState.recommendedRouteId ? '#3b82f6' : '#6b7280',
+          width: r.id === mobilityState.recommendedRouteId ? 6 : 3,
+          opacity: r.id === mobilityState.recommendedRouteId ? 0.8 : 0.4
         },
-      });
-    }
-  };
+      })) : [],
+    });
 
-  const updateMarkers = () => {
-    if (!map.current) return;
-    
-    // Clear old markers
-    markersRef.current.forEach(m => m.remove());
-    markersRef.current = [];
-
-    // Incidents
-    mobilityState.incidents.forEach(inc => {
-      const el = document.createElement('div');
-      el.className = 'w-10 h-10 bg-red-600 rounded-full flex items-center justify-center border-2 border-white shadow-2xl animate-bounce cursor-pointer';
-      el.innerHTML = '<span class="text-white text-lg font-bold">!</span>';
-      
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat(inc.location)
-        .addTo(map.current!);
-      
-      markersRef.current.push(marker);
+    // Hotspots
+    (map.current.getSource('hotspots') as mapboxgl.GeoJSONSource)?.setData({
+      type: 'FeatureCollection',
+      features: showHotspots ? mobilityState.hotspots.map(h => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: h.location },
+        properties: { radius: h.radius },
+      })) : [],
     });
 
     // Checkpoints
-    mobilityState.checkpoints.forEach(chk => {
-      const el = document.createElement('div');
-      el.className = 'w-6 h-6 bg-gray-900 border-2 border-blue-500 rounded-full flex items-center justify-center shadow-lg cursor-pointer hover:scale-110 transition-transform';
-      el.innerHTML = '<div class="w-2 h-2 bg-blue-500 rounded-full"></div>';
-
-      const popupNode = document.createElement('div');
-      const popup = new mapboxgl.Popup({ offset: 15, closeButton: false, className: 'custom-popup' }).setDOMContent(popupNode);
-      const root = createRoot(popupNode);
-      root.render(<CheckpointPanel checkpoint={chk} />);
-
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat(chk.location)
-        .setPopup(popup)
-        .addTo(map.current!);
-      
-      markersRef.current.push(marker);
+    (map.current.getSource('checkpoints') as mapboxgl.GeoJSONSource)?.setData({
+      type: 'FeatureCollection',
+      features: showCheckpoints ? mobilityState.checkpoints.map(chk => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: chk.location },
+        properties: { id: chk.id, density: chk.trafficDensity },
+      })) : [],
     });
 
     // Cameras
-    mobilityState.cameras.forEach(cam => {
-      const el = document.createElement('div');
-      el.className = 'w-6 h-6 bg-gray-900 border-2 border-emerald-500 rounded flex items-center justify-center shadow-lg cursor-pointer hover:scale-110 transition-transform';
-      el.innerHTML = '<span class="text-[10px]">📹</span>';
+    (map.current.getSource('cameras') as mapboxgl.GeoJSONSource)?.setData({
+      type: 'FeatureCollection',
+      features: showCameras ? mobilityState.cameras.map(cam => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: cam.location },
+        properties: { id: cam.id },
+      })) : [],
+    });
 
-      const popupNode = document.createElement('div');
-      const popup = new mapboxgl.Popup({ offset: 15, closeButton: false, className: 'custom-popup' }).setDOMContent(popupNode);
-      const root = createRoot(popupNode);
-      root.render(<CameraPreviewPanel camera={cam} />);
-
-      const marker = new mapboxgl.Marker(el)
-        .setLngLat(cam.location)
-        .setPopup(popup)
-        .addTo(map.current!);
-      
-      markersRef.current.push(marker);
+    // Incidents
+    (map.current.getSource('incidents') as mapboxgl.GeoJSONSource)?.setData({
+      type: 'FeatureCollection',
+      features: showIncidents ? mobilityState.incidents.map(inc => ({
+        type: 'Feature',
+        geometry: { type: 'Point', coordinates: inc.location },
+        properties: { id: inc.id, severity: inc.severity },
+      })) : [],
     });
   };
 
   const getTrafficColor = (level: string) => {
     switch (level) {
-      case 'free-flow': return '#10b981'; // Green
-      case 'moderate': return '#f59e0b'; // Amber
-      case 'congested': return '#ef4444'; // Red
-      case 'severe': return '#991b1b'; // Dark Red
+      case 'free-flow': return '#10b981';
+      case 'moderate': return '#f59e0b';
+      case 'congested': return '#ef4444';
+      case 'severe': return '#991b1b';
       default: return '#6b7280';
     }
   };
@@ -308,9 +504,6 @@ export default function MobilityMap({ mobilityState, activeCity }: MobilityMapPr
             <h3 className="text-xl font-bold text-white mb-2">Mapbox Configuration Required</h3>
             <p className="text-gray-400 max-w-sm mb-4">
               Add <code className="bg-gray-800 px-1 py-0.5 rounded text-gray-300 text-sm">NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN</code> to enable the interactive 3D map.
-            </p>
-            <p className="text-gray-500 text-xs italic">
-              Simulation and Intelligence Panels remain functional.
             </p>
           </div>
         </div>

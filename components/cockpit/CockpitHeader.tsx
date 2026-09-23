@@ -1,17 +1,12 @@
 import React from 'react';
-import { CityConfig, CityRegistry } from '../../lib/config/CityRegistry';
-import { demoScenarioEngine } from '../../lib/simulation/ScenarioEngine';
-import { MobilityState } from '../../lib/mobility/types';
+import { CityRegistry } from '../../lib/config/CityRegistry';
+import { useCityContext } from '../../lib/contexts/CityContext';
 
-interface CockpitHeaderProps {
-  activeCity: CityConfig;
-  setActiveCity: (city: CityConfig) => void;
-  mobilityState: MobilityState;
-}
+export default function CockpitHeader() {
+  const { activeCity, setActiveCity, mobilityState, isDemoDriveActive, setDemoDriveActive, isTransitioning } = useCityContext();
 
-export default function CockpitHeader({ activeCity, setActiveCity, mobilityState }: CockpitHeaderProps) {
   return (
-    <div className="flex items-center justify-between p-4 bg-gray-900/80 backdrop-blur-md border-b border-gray-800 text-white z-20 absolute top-0 left-0 right-0">
+    <div className="flex items-center justify-between p-4 bg-gray-900 border-b border-gray-800 text-white shrink-0 h-16 relative z-30 shadow-md">
       <div className="flex items-center space-x-4">
         <h1 className="text-xl font-black tracking-tight flex items-center">
           <span className="text-blue-500 mr-2">⧖</span>
@@ -20,12 +15,11 @@ export default function CockpitHeader({ activeCity, setActiveCity, mobilityState
         <div className="h-6 w-px bg-gray-700" />
         <select 
           value={activeCity.id}
+          disabled={isTransitioning}
           onChange={(e) => {
-            const newCity = CityRegistry.getCityConfig(e.target.value);
-            setActiveCity(newCity);
-            demoScenarioEngine.resetScenario();
+            setActiveCity(e.target.value);
           }}
-          className="bg-transparent text-sm font-medium focus:outline-none focus:ring-0 text-white cursor-pointer"
+          className={`bg-transparent text-sm font-medium focus:outline-none focus:ring-0 text-white cursor-pointer ${isTransitioning ? 'opacity-50' : ''}`}
         >
           {CityRegistry.getAllSupportedCities().map(name => {
             const cfg = CityRegistry.getCityConfig(name);
@@ -41,21 +35,20 @@ export default function CockpitHeader({ activeCity, setActiveCity, mobilityState
       </div>
 
       <div className="flex items-center space-x-4">
-        <div className="text-xs text-gray-400 font-mono flex items-center space-x-4 mr-4">
-          <span>● SYSTEM ACTIVE</span>
+        <div className="text-xs text-gray-400 font-mono flex items-center space-x-4 mr-4 hidden md:flex">
+          {isTransitioning ? (
+            <span className="text-blue-400 animate-pulse">● SWITCHING MOBILITY CONTEXT...</span>
+          ) : (
+            <span>● SYSTEM ACTIVE</span>
+          )}
           <span>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         </div>
         <button
-          onClick={() => demoScenarioEngine.triggerIncident()}
-          className="bg-red-600 hover:bg-red-700 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-colors"
+          disabled={isTransitioning}
+          onClick={() => setDemoDriveActive(!isDemoDriveActive)}
+          className={`${isDemoDriveActive ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-700 hover:bg-gray-600'} text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-colors hidden sm:block ${isTransitioning ? 'opacity-50' : ''}`}
         >
-          SIMULATE INCIDENT
-        </button>
-        <button
-          onClick={() => demoScenarioEngine.resetScenario()}
-          className="bg-gray-700 hover:bg-gray-600 text-white text-xs font-bold py-1.5 px-3 rounded shadow transition-colors"
-        >
-          RESET
+          {isDemoDriveActive ? 'STOP DEMO DRIVE' : 'START DEMO DRIVE'}
         </button>
       </div>
     </div>

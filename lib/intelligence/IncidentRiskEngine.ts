@@ -36,7 +36,7 @@ export class IncidentRiskEngine {
       // Check Checkpoints for sudden slowdowns (proxy for hard braking)
       const checkpoints = state.checkpoints.filter(c => c.roadId === segment.id);
       for (const chk of checkpoints) {
-        if (chk.averageSpeedKmph < segment.freeFlowSpeed * 0.4 && chk.trend === 'worsening') {
+        if (chk.averageSpeedKmph < segment.freeFlowSpeedKmh * 0.4 && chk.trend === 'worsening') {
           const evId = `ev-spd-${Date.now()}-${Math.random()}`;
           newEvidence.push({
             id: evId,
