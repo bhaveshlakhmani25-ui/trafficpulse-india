@@ -38,15 +38,20 @@ export default function CommandCenterLayout() {
       <CockpitHeader />
       
       {/* MAIN CONTENT GRID */}
-      <div className="flex-1 flex overflow-hidden">
+      <div 
+        className="flex-1 grid overflow-hidden" 
+        style={{ gridTemplateColumns: '264px minmax(0, 1fr) 332px' }}
+      >
         
         {/* LEFT SIDEBAR (FIXED NAVIGATION) */}
-        <CommandCenterSidebar />
+        <div className="min-w-0 min-h-0 overflow-hidden h-full">
+          <CommandCenterSidebar />
+        </div>
 
         {/* CENTER MAP FRAME */}
         <div 
           ref={mapContainerRef} 
-          className="flex-1 relative bg-gray-900 border-x border-gray-800 shadow-2xl overflow-hidden map-frame-container"
+          className="relative bg-gray-900 border-x border-gray-800 shadow-2xl overflow-hidden min-w-0 min-h-0 h-full w-full map-frame-container"
         >
           {mobilityState && (
             <MobilityMap 
@@ -82,9 +87,11 @@ export default function CommandCenterLayout() {
         </div>
 
         {/* RIGHT CONTEXT RAIL (DYNAMIC BASED ON SECTION) */}
-        {mobilityState && (
-          <ContextRail mobilityState={mobilityState} />
-        )}
+        <div className="min-w-0 min-h-0 overflow-hidden h-full">
+          {mobilityState && (
+            <ContextRail mobilityState={mobilityState} />
+          )}
+        </div>
 
       </div>
 

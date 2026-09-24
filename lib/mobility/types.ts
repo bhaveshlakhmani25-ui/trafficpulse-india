@@ -32,6 +32,7 @@ export interface BaseEntity {
 export interface TrafficSegment extends BaseEntity {
   coordinates: [number, number][]; // [lon, lat]
   roadName: string;
+  roadClass?: string;
   lengthKm: number;
   laneCount: number;
   freeFlowSpeedKmh: number;

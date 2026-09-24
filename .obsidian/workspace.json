@@ -4,17 +4,17 @@
     "type": "split",
     "children": [
       {
-        "id": "34de5fda16ef93a4",
+        "id": "def1c962a377d37e",
         "type": "tabs",
         "children": [
           {
-            "id": "e249f70ba299c0bd",
+            "id": "32eccdc15f78b7fe",
             "type": "leaf",
             "state": {
-              "type": "graph",
+              "type": "empty",
               "state": {},
-              "icon": "lucide-git-fork",
-              "title": "Graph view"
+              "icon": "lucide-file",
+              "title": "New tab"
             }
           }
         ]
@@ -181,20 +181,21 @@
       "bases:Create new base": false
     }
   },
-  "active": "e249f70ba299c0bd",
+  "active": "32eccdc15f78b7fe",
   "lastOpenFiles": [
-    "tsconfig.tsbuildinfo",
-    "tests/city-switch.test.ts",
+    "public/data/cities/bengaluru-roads.json",
+    "public/data/cities/mumbai-roads.json",
+    "public/data/cities/delhi-roads.json",
+    "public/data/cities",
+    "public/data",
+    "scratch/preprocessOSM.js",
+    "scratch/bengaluru_osm_full.json",
+    "scratch/mumbai_osm_full.json",
+    "scratch/delhi_osm_full.json",
+    "scratch/bengaluru_osm.json",
+    "scratch/mumbai_osm.json",
+    "node_modules/next/dist/docs/01-app/04-glossary.md",
     "node_modules/eslint-plugin-react/README.md",
-    "components/dashboard/CommandCenterLayout.tsx",
-    "components/dashboard/CommandCenterSidebar.tsx",
-    "lib/contexts/CityContext.tsx",
-    "lib/contexts",
-    "lib/simulation/cities/default.ts",
-    "lib/simulation/cities/mumbai.ts",
-    "lib/simulation/cities/fallback.ts",
-    "lib/simulation/cities/delhi.ts",
-    "lib/simulation/cities/bengaluru.ts",
     "00-Dashboard/TrafficPulse India.md",
     "docs/pages/guides/babel.md",
     "node_modules/is-boolean-object/README.md",
@@ -220,7 +221,6 @@
     "node_modules/jsdom/README.md",
     "node_modules/@testing-library/dom/README.md",
     "node_modules/vite/README.md",
-    "node_modules/vite/LICENSE.md",
     "next-temp/public/window.svg",
     "next-temp/public/vercel.svg",
     "next-temp/public/next.svg",

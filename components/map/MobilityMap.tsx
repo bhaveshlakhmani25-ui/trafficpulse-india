@@ -267,7 +267,56 @@ export default function MobilityMap({ mobilityState, activeCity, focusedFeature,
       type: 'line',
       source: 'traffic',
       layout: { 'line-join': 'round', 'line-cap': 'round' },
-      paint: { 'line-color': ['get', 'color'], 'line-width': 6 },
+      paint: { 
+        'line-color': ['get', 'color'], 
+        'line-width': [
+          'interpolate', ['linear'], ['zoom'],
+          10, [
+            'match', ['get', 'roadClass'],
+            ['motorway', 'trunk'], 4,
+            ['primary'], 3,
+            ['secondary'], 2,
+            0
+          ],
+          14, [
+            'match', ['get', 'roadClass'],
+            ['motorway', 'trunk'], 6,
+            ['primary'], 5,
+            ['secondary'], 4,
+            ['tertiary'], 3,
+            0
+          ],
+          16, [
+            'match', ['get', 'roadClass'],
+            ['motorway', 'trunk'], 8,
+            ['primary'], 7,
+            ['secondary'], 6,
+            ['tertiary'], 4,
+            ['residential', 'unclassified', 'service'], 3,
+            2
+          ]
+        ],
+        'line-opacity': [
+          'interpolate', ['linear'], ['zoom'],
+          10, [
+            'match', ['get', 'roadClass'],
+            ['motorway', 'trunk', 'primary'], 0.8,
+            0
+          ],
+          12, [
+            'match', ['get', 'roadClass'],
+            ['motorway', 'trunk', 'primary', 'secondary'], 0.8,
+            0
+          ],
+          14, [
+            'match', ['get', 'roadClass'],
+            ['motorway', 'trunk', 'primary', 'secondary', 'tertiary'], 0.9,
+            ['residential', 'unclassified', 'service'], 0,
+            0
+          ],
+          15, 0.9
+        ]
+      },
     });
 
     map.current.addSource('routes', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
@@ -393,12 +442,13 @@ export default function MobilityMap({ mobilityState, activeCity, focusedFeature,
     if (!map.current || !map.current.isStyleLoaded()) return;
 
     // Determine visibility based on activeSection
-    const showTraffic = activeSection === 'overview' || activeSection === 'traffic' || activeSection === 'roadAhead';
-    const showIncidents = activeSection === 'overview' || activeSection === 'incidents' || activeSection === 'roadAhead' || activeSection === 'traffic';
-    const showCheckpoints = activeSection === 'checkpoints' || activeSection === 'roadAhead';
-    const showCameras = activeSection === 'cameras' || activeSection === 'roadAhead';
-    const showHotspots = activeSection === 'risk' || activeSection === 'overview';
-    const showRoutes = activeSection === 'routes' || activeSection === 'roadAhead' || activeSection === 'overview';
+    const section = activeSection || 'overview';
+    const showTraffic = ['overview', 'traffic', 'roadAhead', 'risk', 'incidents', 'roadQuality', 'dataSources'].includes(section);
+    const showIncidents = ['overview', 'incidents', 'roadAhead'].includes(section);
+    const showCheckpoints = ['checkpoints', 'roadAhead', 'dataSources'].includes(section);
+    const showCameras = ['cameras', 'roadAhead', 'dataSources'].includes(section);
+    const showHotspots = ['overview', 'traffic', 'risk'].includes(section);
+    const showRoutes = ['overview', 'roadAhead', 'routes'].includes(section);
 
     // Traffic Segments
     (map.current.getSource('traffic') as mapboxgl.GeoJSONSource)?.setData({
@@ -414,6 +464,7 @@ export default function MobilityMap({ mobilityState, activeCity, focusedFeature,
           properties: { 
             color: getTrafficColor(seg.trafficState),
             roadName: seg.roadName,
+            roadClass: seg.roadClass || 'unclassified',
             trafficState: seg.trafficState,
             currentSpeedKmh: seg.currentSpeedKmh,
             freeFlowSpeedKmh: seg.freeFlowSpeedKmh,

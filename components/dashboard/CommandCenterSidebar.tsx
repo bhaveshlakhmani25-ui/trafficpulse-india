@@ -32,7 +32,7 @@ export default function CommandCenterSidebar() {
   const { activeCity, activeSection, setActiveSection, isTransitioning } = useCityContext();
 
   return (
-    <div className="w-16 md:w-64 bg-gray-900 border-r border-gray-800 flex flex-col h-full shrink-0 transition-all duration-300">
+    <div className="w-full bg-gray-900 border-r border-gray-800 flex flex-col h-full shrink-0 transition-all duration-300">
       <div className="p-4 border-b border-gray-800 flex flex-col items-center md:items-start">
         <span className="text-xs text-gray-500 uppercase tracking-wider hidden md:block">Active Context</span>
         <div className="font-bold text-gray-100 mt-1 flex items-center justify-center md:justify-start">

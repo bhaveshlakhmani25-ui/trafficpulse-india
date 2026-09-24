@@ -100,15 +100,38 @@ export class VehicleFlowSimulator {
 
     const segments = this.state.segments;
     
-    for (const segment of segments) {
+    // Sort segments to prioritize congested ones or major roads for visualization,
+    // so if we hit the global cap, the most important traffic is shown.
+    const sortedSegments = [...segments].sort((a, b) => {
+      const scoreA = (a.trafficState === 'severe' ? 100 : a.trafficState === 'congested' ? 50 : 0) + a.laneCount;
+      const scoreB = (b.trafficState === 'severe' ? 100 : b.trafficState === 'congested' ? 50 : 0) + b.laneCount;
+      return scoreB - scoreA;
+    });
+
+    const GLOBAL_MAX_VEHICLES = 2000;
+    let currentGlobalCount = 0;
+    
+    // Track segments we actually process
+    const processedSegmentIds = new Set<string>();
+    
+    for (const segment of sortedSegments) {
+      if (currentGlobalCount >= GLOBAL_MAX_VEHICLES) break;
+      processedSegmentIds.add(segment.id);
+      
       // Population = density * length * lanes
       const population = Math.floor(segment.estimatedDensityVehPerKmPerLane * segment.lengthKm * segment.laneCount);
       
       // Representative visualization sample
       let visualSample = population;
-      if (population > MAX_VISUAL_VEHICLES_PER_SEGMENT) {
+      if (visualSample > MAX_VISUAL_VEHICLES_PER_SEGMENT) {
         visualSample = MAX_VISUAL_VEHICLES_PER_SEGMENT;
       }
+      
+      // Ensure we don't exceed global cap with this segment
+      if (currentGlobalCount + visualSample > GLOBAL_MAX_VEHICLES) {
+        visualSample = GLOBAL_MAX_VEHICLES - currentGlobalCount;
+      }
+      currentGlobalCount += visualSample;
       
       const existingVehicles = this.vehicles.filter(v => v.segmentId === segment.id);
       
@@ -126,6 +149,9 @@ export class VehicleFlowSimulator {
         }
       }
     }
+    
+    // Clean up vehicles on segments we couldn't budget for
+    this.vehicles = this.vehicles.filter(v => processedSegmentIds.has(v.segmentId));
   }
 
   private createVehicle(segment: TrafficSegment, index: number): TrafficVehicle {
