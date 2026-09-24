@@ -6,12 +6,7 @@ export default defineConfig({
   plugins: [react()],
   test: {
     css: false,
-    server: {
-      deps: {
-        inline: ['@asamuzakjp/css-color', '@csstools/css-calc']
-      }
-    },
-    environment: 'jsdom',
+    environment: 'node',
     setupFiles: ['./vitest.setup.ts'],
     alias: {
       '@': path.resolve(__dirname, './'),

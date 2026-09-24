@@ -51,7 +51,7 @@ describe('Deterministic Intelligence', () => {
     state = demoScenarioEngine.getScenarioState();
     expect(state.scenarioState).toBe('RECOMMENDATION');
     expect(state.hotspots.length).toBeGreaterThan(0);
-    expect(state.recommendedRouteId).toBe('route-alt');
+    expect(state.recommendedRouteId).toBe('route-blr-alt');
 
     vi.useRealTimers();
   });

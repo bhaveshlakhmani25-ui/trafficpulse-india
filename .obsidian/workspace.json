@@ -183,6 +183,7 @@
   },
   "active": "32eccdc15f78b7fe",
   "lastOpenFiles": [
+    "scratch/mock.js",
     "public/data/cities/bengaluru-roads.json",
     "public/data/cities/mumbai-roads.json",
     "public/data/cities/delhi-roads.json",
@@ -193,7 +194,6 @@
     "scratch/mumbai_osm_full.json",
     "scratch/delhi_osm_full.json",
     "scratch/bengaluru_osm.json",
-    "scratch/mumbai_osm.json",
     "node_modules/next/dist/docs/01-app/04-glossary.md",
     "node_modules/eslint-plugin-react/README.md",
     "00-Dashboard/TrafficPulse India.md",

@@ -1,28 +1,45 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #030712;
+  --foreground: #f9fafb;
+  
+  /* TrafficPulse Design Tokens */
+  --tp-bg: #030712;
+  --tp-surface: #111827;
+  --tp-surface-hover: #1f2937;
+  --tp-surface-elevated: rgba(17, 24, 39, 0.85);
+  --tp-border: #1f2937;
+  --tp-border-light: #374151;
+  
+  --tp-text-primary: #f9fafb;
+  --tp-text-secondary: #9ca3af;
+  --tp-text-muted: #6b7280;
+  
+  --tp-accent: #06b6d4;
+  --tp-accent-light: #22d3ee;
+  --tp-accent-dim: rgba(6, 182, 212, 0.15);
+  
+  --tp-traffic-free: #10b981;
+  --tp-traffic-moderate: #f59e0b;
+  --tp-traffic-heavy: #ef4444;
+  --tp-traffic-severe: #7f1d1d;
+
+  --tp-transition: 200ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 .custom-popup .mapboxgl-popup-content { background: transparent; padding: 0; box-shadow: none; border-radius: 0; }
 .custom-popup .mapboxgl-popup-tip { display: none; }
