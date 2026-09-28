@@ -1,4 +1,4 @@
-````markdown
+
 # TrafficPulse AI
 
 > **See the road ahead before you reach it.**
