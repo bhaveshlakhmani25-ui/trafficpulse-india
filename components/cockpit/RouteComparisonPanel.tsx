@@ -16,7 +16,7 @@ export default function RouteComparisonPanel({ routes, recommendedId }: RouteCom
           const isRecommended = r.id === recommendedId;
           const totalMins = Math.round(r.overallCost / 60);
           const delayMins = Math.round((r.incidentPenalty + r.congestionPenalty) / 60);
-          
+
           return (
             <div key={r.id} className={`p-4 rounded-xl border transition-[var(--tp-transition)] shadow-sm ${isRecommended ? 'border-[var(--tp-accent)] bg-[var(--tp-accent-dim)]' : 'border-[var(--tp-border)] bg-[var(--tp-surface)]'}`}>
               <div className="flex justify-between items-start mb-3">

@@ -10,6 +10,7 @@ import { createRoot } from 'react-dom/client';
 import CheckpointPanel from '../cockpit/CheckpointPanel';
 import CameraPreviewPanel from '../cockpit/CameraPreviewPanel';
 import { VehicleFlowSimulator } from '../../lib/traffic/VehicleFlowSimulator';
+import { Icon } from '../ui/FigmaShared';
 
 interface MobilityMapProps {
   mobilityState: MobilityState;
@@ -18,15 +19,19 @@ interface MobilityMapProps {
   onFeatureSelect?: (feature: FocusedFeature | null) => void;
   isDemoDriveActive?: boolean;
   activeSection?: string;
+  mapMode?: '3d' | '2d' | 'satellite';
 }
 
-export default function MobilityMap({ mobilityState, activeCity, focusedFeature, onFeatureSelect, isDemoDriveActive, activeSection }: MobilityMapProps) {
+export default function MobilityMap({ mobilityState, activeCity, focusedFeature, onFeatureSelect, isDemoDriveActive, activeSection, mapMode = '2d' }: MobilityMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const [hasToken] = useState(!!process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN);
   const cameraControllerRef = useRef<RoadAheadCameraController | null>(null);
   const popupsRef = useRef<mapboxgl.Popup[]>([]);
   const vehicleSimulatorRef = useRef<VehicleFlowSimulator | null>(null);
+  const currentStyleRef = useRef<string>('mapbox://styles/mapbox/standard');
+  const [locationError, setLocationError] = useState<string | null>(null);
+  const userMarkerRef = useRef<mapboxgl.Marker | null>(null);
 
   useEffect(() => {
     if (!hasToken || !mapContainer.current) return;
@@ -43,12 +48,15 @@ export default function MobilityMap({ mobilityState, activeCity, focusedFeature,
 
     mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN!;
     
+    const initialStyle = mapMode === 'satellite' ? 'mapbox://styles/mapbox/standard-satellite' : 'mapbox://styles/mapbox/standard';
+    currentStyleRef.current = initialStyle;
+
     map.current = new mapboxgl.Map({
       container: mapContainer.current,
-      style: 'mapbox://styles/mapbox/standard',
+      style: initialStyle,
       center: activeCity.centerCoordinates,
       zoom: activeCity.initialZoom,
-      pitch: 0,
+      pitch: mapMode === '3d' ? 55 : 0,
       bearing: 0,
     });
 
@@ -180,6 +188,55 @@ export default function MobilityMap({ mobilityState, activeCity, focusedFeature,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeCity.id, hasToken]);
+
+  // Handle Map Mode Changes
+  useEffect(() => {
+    if (!map.current) return;
+
+    const targetStyle = mapMode === 'satellite' ? 'mapbox://styles/mapbox/standard-satellite' : 'mapbox://styles/mapbox/standard';
+    const currentPitch = map.current.getPitch();
+
+    if (currentStyleRef.current !== targetStyle) {
+      // Switch style
+      currentStyleRef.current = targetStyle;
+      map.current.setStyle(targetStyle);
+      
+      map.current.once('style.load', () => {
+        // Restore dusk lighting if standard
+        if (targetStyle === 'mapbox://styles/mapbox/standard') {
+          map.current?.setConfigProperty('basemap', 'lightPreset', 'dusk');
+        }
+        
+        // Ensure image is restored
+        const carSvg = '<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L4 20L12 17L20 20L12 2Z" fill="#3b82f6" stroke="#1d4ed8" stroke-width="1"/></svg>';
+        const img = new Image();
+        img.src = 'data:image/svg+xml;utf8,' + encodeURIComponent(carSvg);
+        img.onload = () => {
+          if (map.current && !map.current.hasImage('car-icon')) {
+            map.current.addImage('car-icon', img);
+          }
+        };
+
+        // Re-initialize custom sources and layers
+        initMapLayers();
+        updateMapLayers();
+        
+        // Re-adjust pitch if needed
+        if (mapMode === '3d' && currentPitch < 40) {
+          map.current?.easeTo({ pitch: 55, duration: 1000 });
+        } else if (mapMode === '2d' && currentPitch > 10) {
+          map.current?.easeTo({ pitch: 0, duration: 1000 });
+        }
+      });
+    } else {
+      // Style is the same, just adjust pitch
+      if (mapMode === '3d' && currentPitch < 40) {
+        map.current.easeTo({ pitch: 55, duration: 1000 });
+      } else if (mapMode === '2d' && currentPitch > 10) {
+        map.current.easeTo({ pitch: 0, duration: 1000 });
+      }
+    }
+  }, [mapMode]);
 
   // Update sources/layers whenever mobility state or activeSection changes
   useEffect(() => {
@@ -544,10 +601,88 @@ export default function MobilityMap({ mobilityState, activeCity, focusedFeature,
     }
   };
 
+  const handleResetMap = () => {
+    if (!map.current) return;
+    map.current.easeTo({
+      center: activeCity.centerCoordinates,
+      zoom: activeCity.initialZoom,
+      pitch: mapMode === '3d' ? 55 : 0,
+      bearing: 0,
+      duration: 1200
+    });
+  };
+
+  const handleMyLocation = () => {
+    setLocationError(null);
+    if (!navigator.geolocation) {
+      setLocationError("LOCATION UNAVAILABLE");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const { longitude, latitude } = position.coords;
+        if (map.current) {
+          map.current.flyTo({
+            center: [longitude, latitude],
+            zoom: 15,
+            duration: 1500
+          });
+
+          if (!userMarkerRef.current) {
+            const el = document.createElement('div');
+            el.className = 'user-location-marker';
+            el.innerHTML = '<svg width="24" height="24" viewBox="0 0 24 24"><circle cx="12" cy="12" r="6" fill="#4de3e8" stroke="#08101c" stroke-width="2"/><circle cx="12" cy="12" r="12" fill="rgba(77,227,232,0.2)"/></svg>';
+            userMarkerRef.current = new mapboxgl.Marker({ element: el })
+              .setLngLat([longitude, latitude])
+              .addTo(map.current);
+          } else {
+            userMarkerRef.current.setLngLat([longitude, latitude]);
+          }
+        }
+      },
+      (error) => {
+        if (error.code === error.PERMISSION_DENIED) {
+          setLocationError("PERMISSION DENIED");
+        } else {
+          setLocationError("LOCATION UNAVAILABLE");
+        }
+        setTimeout(() => setLocationError(null), 3000);
+      },
+      { timeout: 10000 }
+    );
+  };
+
   return (
     <div className="w-full h-full bg-gray-950">
       {hasToken ? (
-        <div ref={mapContainer} className="w-full h-full" />
+        <div className="w-full h-full relative">
+          <div ref={mapContainer} className="w-full h-full" />
+          
+          <div className="map-controls">
+            <button 
+              className="button flex items-center justify-center transition-colors"
+              onClick={handleResetMap}
+              aria-label="Reset map"
+              title="RESET MAP"
+            >
+              <Icon name="refresh" size={16} />
+            </button>
+            <span />
+            <button 
+              className="button flex items-center justify-center transition-colors"
+              onClick={handleMyLocation}
+              aria-label="Show my location"
+              title="MY LOCATION"
+            >
+              <Icon name="crosshair" size={16} />
+            </button>
+          </div>
+          {locationError && (
+            <div className="absolute top-4 left-4 bg-gray-900/90 border border-red-500/50 text-red-400 text-[10px] font-bold px-3 py-1.5 rounded uppercase tracking-wider z-10 shadow-lg">
+              {locationError}
+            </div>
+          )}
+        </div>
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center p-8 text-center bg-gray-950 relative">
           <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center opacity-10" />

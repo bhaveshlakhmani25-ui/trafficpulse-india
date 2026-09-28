@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { BrandAssets } from '../../lib/brandAssets';
 
 export default function CockpitHeader() {
-  const { activeCity, setActiveCity, isDemoDriveActive, setDemoDriveActive, isTransitioning } = useCityContext();
+  const { activeCity, setActiveCity, isDemoDriveActive, setDemoDriveActive, isTransitioning, sidebarCollapsed, setSidebarCollapsed } = useCityContext();
   const [time, setTime] = useState("");
   
   useEffect(() => {
@@ -20,7 +20,12 @@ export default function CockpitHeader() {
 
   return (
     <header className="app-header">
-      <div className="brand">
+      <div 
+        className="brand cursor-pointer" 
+        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+        aria-label="Toggle navigation"
+        aria-expanded={!sidebarCollapsed}
+      >
         <div className="brand-icon-only">
           <Image src={BrandAssets.IconDark} alt="TrafficPulse AI Icon" width={32} height={32} />
         </div>

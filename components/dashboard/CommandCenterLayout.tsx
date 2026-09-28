@@ -22,7 +22,7 @@ import { calculateMobilityIndex, calculateAverageSpeed, getNetworkTrafficState }
 const MobilityMap = dynamic(() => import('../map/MobilityMap'), { ssr: false });
 
 export default function CommandCenterLayout() {
-  const { activeCity, mobilityState, isDemoDriveActive, isTransitioning, activeSection, selectedFeature, setSelectedFeature } = useCityContext();
+  const { activeCity, mobilityState, isDemoDriveActive, isTransitioning, activeSection, selectedFeature, setSelectedFeature, sidebarCollapsed, mapMode, setMapMode } = useCityContext();
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
 
@@ -39,7 +39,7 @@ export default function CommandCenterLayout() {
   return (
     <div className="page">
       <div className="ambient-lines" />
-      <div className="app-shell">
+      <div className={`app-shell ${sidebarCollapsed ? 'sidebar-collapsed' : ''}`}>
         
         {/* HEADER ROW */}
         <CockpitHeader />
@@ -82,6 +82,28 @@ export default function CommandCenterLayout() {
                 ref={mapContainerRef} 
                 className="map-frame"
               >
+                {/* MAP MODE CONTROLS */}
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[5] bg-[rgba(13,23,36,0.9)] border border-[var(--border)] rounded-[8px] flex items-center p-1 shadow-[var(--shadow-float)] gap-1">
+                  <button 
+                    onClick={() => setMapMode('3d')}
+                    className={`px-3 py-1.5 text-[8px] font-bold tracking-[1px] uppercase rounded-[6px] transition-colors ${mapMode === '3d' ? 'bg-[var(--cyan-soft)] text-[var(--cyan)]' : 'text-[var(--text-secondary)] hover:text-white'}`}
+                  >
+                    3D Map
+                  </button>
+                  <button 
+                    onClick={() => setMapMode('2d')}
+                    className={`px-3 py-1.5 text-[8px] font-bold tracking-[1px] uppercase rounded-[6px] transition-colors ${mapMode === '2d' ? 'bg-[var(--cyan-soft)] text-[var(--cyan)]' : 'text-[var(--text-secondary)] hover:text-white'}`}
+                  >
+                    2D Map
+                  </button>
+                  <button 
+                    onClick={() => setMapMode('satellite')}
+                    className={`px-3 py-1.5 text-[8px] font-bold tracking-[1px] uppercase rounded-[6px] transition-colors ${mapMode === 'satellite' ? 'bg-[var(--cyan-soft)] text-[var(--cyan)]' : 'text-[var(--text-secondary)] hover:text-white'}`}
+                  >
+                    Satellite
+                  </button>
+                </div>
+
                 {mobilityState && (
                   <MobilityMap 
                     mobilityState={mobilityState} 
@@ -90,6 +112,7 @@ export default function CommandCenterLayout() {
                     onFeatureSelect={setSelectedFeature}
                     isDemoDriveActive={isDemoDriveActive}
                     activeSection={activeSection}
+                    mapMode={mapMode}
                   />
                 )}
                 

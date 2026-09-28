@@ -4,7 +4,8 @@ export type IconName =
   | "grid" | "road" | "traffic" | "incident" | "risk" | "quality"
   | "camera" | "checkpoint" | "weather" | "route" | "database"
   | "location" | "layers" | "plus" | "minus" | "compass" | "arrow"
-  | "car" | "clock" | "chevron" | "alert" | "spark";
+  | "car" | "clock" | "chevron" | "chevron-right" | "alert" | "spark"
+  | "refresh" | "crosshair";
 
 const iconPaths: Record<IconName, ReactNode> = {
   grid: <><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></>,
@@ -27,8 +28,11 @@ const iconPaths: Record<IconName, ReactNode> = {
   car: <><path d="M5 16l1.5-6h11l1.5 6" /><rect x="3" y="14" width="18" height="5" rx="2" /><path d="M7 19v2m10-2v2" /></>,
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
   chevron: <path d="M8 10l4 4 4-4" />,
+  "chevron-right": <path d="M10 8l4 4-4 4" />,
   alert: <><circle cx="12" cy="12" r="9" /><path d="M12 7v6m0 4h.01" /></>,
   spark: <><path d="M12 3l1.5 5.5L19 10l-5.5 1.5L12 17l-1.5-5.5L5 10l5.5-1.5L12 3z" /><path d="M19 16l.6 2.4L22 19l-2.4.6L19 22l-.6-2.4L16 19l2.4-.6L19 16z" /></>,
+  refresh: <><path d="M3 12a9 9 0 109-9 9.75 9.75 0 00-6.74 2.74L3 8" /><path d="M3 3v5h5" /></>,
+  crosshair: <><circle cx="12" cy="12" r="10" /><path d="M12 2v4m0 12v4M2 12h4m12 0h4" /></>,
 };
 
 export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
@@ -41,8 +45,8 @@ export function Icon({ name, size = 18 }: { name: IconName; size?: number }) {
 
 const NativeButton = "button";
 
-export function Button({ children, className = "", onClick, label, pressed }: { children: ReactNode; className?: string; onClick?: () => void; label?: string; pressed?: boolean }) {
-  return <NativeButton className={`button ${className}`} onClick={onClick} aria-label={label} aria-pressed={pressed}>{children}</NativeButton>;
+export function Button({ children, className = "", onClick, label, pressed, title }: { children: ReactNode; className?: string; onClick?: () => void; label?: string; pressed?: boolean; title?: string }) {
+  return <NativeButton className={`button ${className}`} onClick={onClick} aria-label={label} aria-pressed={pressed} title={title}>{children}</NativeButton>;
 }
 
 export function DataClassBadge({ type }: { type: "Observed" | "Historical" | "Predicted" | "Simulated" }) {

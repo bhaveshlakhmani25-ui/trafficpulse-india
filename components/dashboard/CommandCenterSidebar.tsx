@@ -30,6 +30,7 @@ function SidebarItem({ item, active, onSelect, disabled }: { item: View; active:
       className={`nav-item ${active ? "active" : ""} ${disabled ? "opacity-50 cursor-not-allowed" : ""}`} 
       onClick={disabled ? undefined : onSelect} 
       pressed={active}
+      title={item.label}
     >
       <span className="nav-icon"><Icon name={item.icon} size={17} /></span>
       <span className="nav-label">{item.label}</span>
@@ -39,7 +40,7 @@ function SidebarItem({ item, active, onSelect, disabled }: { item: View; active:
 }
 
 export default function CommandCenterSidebar() {
-  const { activeSection, setActiveSection, isTransitioning, mobilityState } = useCityContext();
+  const { activeSection, setActiveSection, isTransitioning, mobilityState, sidebarCollapsed, setSidebarCollapsed } = useCityContext();
 
   // Add notes based on active state (e.g., number of incidents)
   const viewsWithNotes = views.map(v => {
@@ -50,8 +51,17 @@ export default function CommandCenterSidebar() {
   });
 
   return (
-    <aside className="sidebar" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
-      <div className="nav-caption shrink-0">INTELLIGENCE</div>
+    <aside className={`sidebar ${sidebarCollapsed ? 'collapsed' : ''}`} style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
+      <div className="nav-caption shrink-0 flex justify-between items-center w-full">
+        <span className="sidebar-title-text">INTELLIGENCE</span>
+        <button 
+          onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+          className="text-[var(--sidebar-muted)] hover:text-white transition-colors"
+          aria-label={sidebarCollapsed ? "Expand navigation" : "Collapse navigation"}
+        >
+          <Icon name={sidebarCollapsed ? "chevron-right" : "chevron"} size={16} />
+        </button>
+      </div>
       <nav className="nav-list shrink-0" aria-label="Primary navigation">
         {viewsWithNotes.map((item) => (
           <SidebarItem 

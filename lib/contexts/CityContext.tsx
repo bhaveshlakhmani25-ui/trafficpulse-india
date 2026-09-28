@@ -13,11 +13,15 @@ interface CityContextValue {
   isDemoDriveActive: boolean;
   isTransitioning: boolean;
   mobilityState: MobilityState | null;
+  sidebarCollapsed: boolean;
+  mapMode: '3d' | '2d' | 'satellite';
   
   setActiveCity: (cityId: string) => Promise<void>;
   setActiveSection: (section: string) => void;
   setSelectedFeature: (feature: FocusedFeature | null) => void;
   setDemoDriveActive: (active: boolean) => void;
+  setSidebarCollapsed: (collapsed: boolean) => void;
+  setMapMode: (mode: '3d' | '2d' | 'satellite') => void;
 }
 
 const CityContext = createContext<CityContextValue | undefined>(undefined);
@@ -29,6 +33,8 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
   const [isDemoDriveActive, setDemoDriveActive] = useState<boolean>(false);
   const [isTransitioning, setIsTransitioning] = useState<boolean>(true); // start as transitioning
   const [mobilityState, setMobilityState] = useState<MobilityState | null>(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(false);
+  const [mapMode, setMapMode] = useState<'3d' | '2d' | 'satellite'>('2d');
 
   const transitionRef = useRef(0); // Version ID for stale request protection
 
@@ -87,10 +93,14 @@ export function CityProvider({ children }: { children: React.ReactNode }) {
     isDemoDriveActive,
     isTransitioning,
     mobilityState,
+    sidebarCollapsed,
+    mapMode,
     setActiveCity,
     setActiveSection,
     setSelectedFeature,
     setDemoDriveActive,
+    setSidebarCollapsed,
+    setMapMode,
   };
 
   return (
