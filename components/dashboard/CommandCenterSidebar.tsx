@@ -50,9 +50,9 @@ export default function CommandCenterSidebar() {
   });
 
   return (
-    <aside className="sidebar">
-      <div className="nav-caption">INTELLIGENCE</div>
-      <nav className="nav-list" aria-label="Primary navigation">
+    <aside className="sidebar" style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
+      <div className="nav-caption shrink-0">INTELLIGENCE</div>
+      <nav className="nav-list shrink-0" aria-label="Primary navigation">
         {viewsWithNotes.map((item) => (
           <SidebarItem 
             key={item.id} 
@@ -63,14 +63,31 @@ export default function CommandCenterSidebar() {
           />
         ))}
       </nav>
-      <div className="sidebar-system">
+      
+      <div className="nav-caption shrink-0 mt-6 border-t border-[var(--sidebar-border)] pt-6">ACCOUNT</div>
+      <nav className="nav-list shrink-0 mb-6">
+         <div className="nav-item opacity-60 cursor-not-allowed flex items-center">
+            <span className="nav-icon"><Icon name="clock" size={17} /></span>
+            <span className="nav-label">Sign in</span>
+         </div>
+         <div className="nav-item opacity-60 cursor-not-allowed flex items-center">
+            <span className="nav-icon"><Icon name="route" size={17} /></span>
+            <span className="nav-label">Manage profile</span>
+         </div>
+         <div className="nav-item opacity-60 cursor-not-allowed flex items-center">
+            <span className="nav-icon"><Icon name="layers" size={17} /></span>
+            <span className="nav-label">Preferences</span>
+         </div>
+      </nav>
+
+      <div className="sidebar-system shrink-0 mt-auto">
         <div className="system-orbit"><span>{mobilityState ? calculateMobilityIndex(mobilityState) : '--'}</span><small>MOBILITY</small></div>
         <div>
           <span className="sidebar-system-title">{isTransitioning ? 'Updating Network' : 'Network stable'}</span>
           <small>{isTransitioning ? 'Syncing...' : 'Live'}</small>
         </div>
       </div>
-      <div className="sidebar-footer">
+      <div className="sidebar-footer shrink-0">
         <span>TP / 01.4</span>
         <StatusIndicator label={isTransitioning ? "Syncing" : "Online"} tone={isTransitioning ? "cyan" : "good"} />
       </div>

@@ -62,13 +62,13 @@ export default function RouteBar() {
           <Icon name="route" size={16} />
           Route options
         </Button>
-        <Button 
-          className={isDemoDriveActive ? "drive-button active" : "drive-button"} 
+        <button 
+          className="flex items-center gap-2 text-[var(--text-secondary)] text-[10px] uppercase font-bold tracking-wider hover:text-[var(--cyan)] transition-colors ml-4"
           onClick={() => setDemoDriveActive(!isDemoDriveActive)}
         >
-          <Icon name={isDemoDriveActive ? "route" : "car"} size={17} />
-          {isDemoDriveActive ? "Drive active" : "Start demo drive"}
-        </Button>
+          <Icon name={isDemoDriveActive ? "route" : "car"} size={15} />
+          {isDemoDriveActive ? "Stop Drive" : "Drive Mode"}
+        </button>
       </div>
     </footer>
   );

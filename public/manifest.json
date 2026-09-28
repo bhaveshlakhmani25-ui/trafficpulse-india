@@ -1,0 +1,21 @@
+{
+  "name": "TrafficPulse AI",
+  "short_name": "TrafficPulse",
+  "description": "See the road ahead before you reach it.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B1B2E",
+  "theme_color": "#0B1B2E",
+  "icons": [
+    {
+      "src": "/brand/favicon-app-icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "/brand/favicon-app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

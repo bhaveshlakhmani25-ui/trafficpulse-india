@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { CityRegistry } from '../../lib/config/CityRegistry';
 import { useCityContext } from '../../lib/contexts/CityContext';
 import { Button, Icon, DataClassBadge, StatusIndicator } from '../ui/FigmaShared';
+import Image from 'next/image';
+import { BrandAssets } from '../../lib/brandAssets';
 
 export default function CockpitHeader() {
   const { activeCity, setActiveCity, isDemoDriveActive, setDemoDriveActive, isTransitioning } = useCityContext();
@@ -19,8 +21,12 @@ export default function CockpitHeader() {
   return (
     <header className="app-header">
       <div className="brand">
-        <div className="brand-mark"><span /><span /><span /></div>
-        <div><div className="brand-name">TrafficPulse</div><div className="brand-ai">AI ROAD INTELLIGENCE</div></div>
+        <div className="brand-icon-only">
+          <Image src={BrandAssets.IconDark} alt="TrafficPulse AI Icon" width={32} height={32} />
+        </div>
+        <div className="brand-full">
+          <Image src={BrandAssets.LogoDarkOnNavy} alt="TrafficPulse AI" width={140} height={32} priority />
+        </div>
       </div>
       <div className="relative">
         <select 

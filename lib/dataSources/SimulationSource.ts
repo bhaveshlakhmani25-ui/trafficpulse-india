@@ -34,6 +34,10 @@ export class SimulationSource implements TrafficSource, IncidentSource, Checkpoi
     SimulationSource.activeRequest = abortController;
     
     try {
+      if (typeof window === 'undefined') {
+        // Skip relative fetching during SSR/build, fallback to built-in simulation data
+        return this.getSimulationData(cityId).segments;
+      }
       const response = await fetch(`/data/cities/${cityId}-roads.json`, { 
         signal: abortController.signal 
       });

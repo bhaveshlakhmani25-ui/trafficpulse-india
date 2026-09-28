@@ -132,3 +132,61 @@ export function getNetworkTrafficState(state: MobilityState): string {
   return 'Severe';
 }
 
+
+export function getTrafficTrendPath(state: MobilityState, cityId: string): { observed: string, predicted: string, area: string, currentY: number } {
+  let seed = 0;
+  for (let i = 0; i < cityId.length; i++) {
+    seed += cityId.charCodeAt(i);
+  }
+  
+  // Incorporate the current hour/minute into the seed slightly so it changes slowly
+  const date = new Date();
+  const timeSlice = Math.floor(date.getMinutes() / 5); // Changes every 5 minutes
+  seed += date.getHours() * 100 + timeSlice;
+
+  const random = () => {
+    let x = Math.sin(seed++) * 10000;
+    return x - Math.floor(x);
+  };
+  
+  const baseMobility = calculateMobilityIndex(state);
+  const currentY = Math.max(10, Math.min(90, baseMobility));
+  
+  const pastPts: {x: number, y: number}[] = [{x: 345, y: currentY}];
+  for (let i = 1; i <= 6; i++) {
+    const x = 345 - (345 / 6) * i;
+    const variance = (random() - 0.5) * 60; 
+    let y = currentY + variance;
+    y = Math.max(10, Math.min(95, y));
+    pastPts.unshift({x, y});
+  }
+  
+  let observedStr = `M${Math.round(pastPts[0].x)} ${Math.round(pastPts[0].y)}`;
+  for (let i = 1; i < pastPts.length; i++) {
+    const pt = pastPts[i];
+    const prev = pastPts[i-1];
+    const cp1X = prev.x + (pt.x - prev.x) / 2;
+    observedStr += ` C${Math.round(cp1X)} ${Math.round(prev.y)} ${Math.round(cp1X)} ${Math.round(pt.y)} ${Math.round(pt.x)} ${Math.round(pt.y)}`;
+  }
+  
+  const futurePts: {x: number, y: number}[] = [{x: 345, y: currentY}];
+  for (let i = 1; i <= 3; i++) {
+    const x = 345 + ((500 - 345) / 3) * i;
+    const variance = (random() - 0.5) * 50; 
+    let y = currentY + variance;
+    y = Math.max(10, Math.min(95, y));
+    futurePts.push({x, y});
+  }
+  
+  let predictedStr = `M${Math.round(futurePts[0].x)} ${Math.round(futurePts[0].y)}`;
+  for (let i = 1; i < futurePts.length; i++) {
+    const pt = futurePts[i];
+    const prev = futurePts[i-1];
+    const cp1X = prev.x + (pt.x - prev.x) / 2;
+    predictedStr += ` C${Math.round(cp1X)} ${Math.round(prev.y)} ${Math.round(cp1X)} ${Math.round(pt.y)} ${Math.round(pt.x)} ${Math.round(pt.y)}`;
+  }
+  
+  const areaStr = observedStr + ` L345 100 L0 100 Z`;
+
+  return { observed: observedStr, predicted: predictedStr, area: areaStr, currentY };
+}
