@@ -60,3 +60,75 @@ export function getRouteContextState(state: MobilityState): MobilityState {
     hotspots: relevantHotspots,
   };
 }
+
+export function calculateAverageSpeed(state: MobilityState): number {
+  if (!state.segments || state.segments.length === 0) return 0;
+  
+  // Calculate a length-weighted average speed
+  let totalLength = 0;
+  let weightedSpeed = 0;
+  
+  for (const segment of state.segments) {
+    totalLength += segment.lengthKm;
+    weightedSpeed += segment.currentSpeedKmh * segment.lengthKm;
+  }
+  
+  return totalLength > 0 ? Math.round(weightedSpeed / totalLength) : 0;
+}
+
+export function calculateMobilityIndex(state: MobilityState): number {
+  if (!state.segments || state.segments.length === 0) return 100;
+  
+  // 1. Base score derived from average speed vs free flow speed (0-100)
+  let totalLength = 0;
+  let weightedCurrentSpeed = 0;
+  let weightedFreeFlowSpeed = 0;
+  
+  let congestionPenalty = 0;
+  
+  for (const segment of state.segments) {
+    totalLength += segment.lengthKm;
+    weightedCurrentSpeed += segment.currentSpeedKmh * segment.lengthKm;
+    weightedFreeFlowSpeed += segment.freeFlowSpeedKmh * segment.lengthKm;
+    
+    if (segment.trafficState === 'severe') congestionPenalty += 10 * segment.lengthKm;
+    if (segment.trafficState === 'congested') congestionPenalty += 5 * segment.lengthKm;
+    if (segment.trafficState === 'moderate') congestionPenalty += 1 * segment.lengthKm;
+  }
+  
+  const avgCurrent = totalLength > 0 ? (weightedCurrentSpeed / totalLength) : 0;
+  const avgFree = totalLength > 0 ? (weightedFreeFlowSpeed / totalLength) : 60;
+  
+  const speedRatio = avgFree > 0 ? Math.min(avgCurrent / avgFree, 1) : 1;
+  let baseScore = speedRatio * 100;
+  
+  // 2. Apply penalties for active incidents
+  const incidentPenalty = state.incidents.reduce((penalty, incident) => {
+    switch (incident.severity) {
+      case 'critical': return penalty + 15;
+      case 'high': return penalty + 8;
+      case 'medium': return penalty + 3;
+      case 'low': return penalty + 1;
+      default: return penalty;
+    }
+  }, 0);
+  
+  // 3. Normalize congestion penalty by network size
+  const normalizedCongestionPenalty = totalLength > 0 ? Math.min(congestionPenalty / totalLength * 15, 30) : 0;
+  
+  let finalScore = baseScore - incidentPenalty - normalizedCongestionPenalty;
+  
+  return Math.max(0, Math.min(100, Math.round(finalScore)));
+}
+
+export function getNetworkTrafficState(state: MobilityState): string {
+  if (!state.segments || state.segments.length === 0) return 'Unknown';
+  
+  const score = calculateMobilityIndex(state);
+  
+  if (score >= 80) return 'Free Flow';
+  if (score >= 60) return 'Moderate';
+  if (score >= 40) return 'Heavy';
+  return 'Severe';
+}
+

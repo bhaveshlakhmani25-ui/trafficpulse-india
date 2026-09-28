@@ -1,0 +1,10 @@
+{
+  "description": "TrafficPulse AI is a premium road intelligence platform that provides real-time traffic insights, navigation assistance, and predictive analytics for urban mobility.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
